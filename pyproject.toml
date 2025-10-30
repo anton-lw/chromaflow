@@ -1,0 +1,50 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "chromaflow"
+version = "0.3.0" 
+description = "A modern, high-performance color science library for Python."
+authors = [{ name = "Anton Waagaard", email = "anton.lickhammer.waagaard@gmail.com" }]
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+]
+dependencies = [
+    "numpy>=1.21",
+]
+
+[project.optional-dependencies]
+performance = [
+    "jax[cpu]",
+    "numba",
+]
+plotting = [
+    "matplotlib>=3.5",
+]
+dev = [
+    "pytest",
+    "ruff",
+    "mypy",
+    "pytest-benchmark",
+    "matplotlib>=3.5", 
+]
+
+[tool.ruff]
+line-length = 88
+select = ["E", "F", "W", "I", "UP"]
+
+[tool.mypy]
+strict = true
+ignore_missing_imports = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/chromaflow"]
+
+[tool.hatch.build]
+include = [
+    "src/chromaflow/data/*.csv",
+]
