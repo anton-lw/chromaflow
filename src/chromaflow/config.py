@@ -1,14 +1,14 @@
 # src/chromaflow/config.py
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Literal, Iterator
+from typing import Literal
+
+from .exceptions import BackendConfigurationError
 
 Backend = Literal["numpy", "jax", "numba"]
 
 _CURRENT_BACKEND: Backend = "numpy"
 
-class BackendConfigurationError(Exception):
-    """Raised when there is an issue with backend configuration."""
-    pass
 
 def set_backend(backend: Backend) -> None:
     """
@@ -22,9 +22,11 @@ def set_backend(backend: Backend) -> None:
         raise BackendConfigurationError(f"Unknown backend: '{backend}'")
     _CURRENT_BACKEND = backend
 
+
 def get_backend() -> Backend:
     """Returns the name of the currently active backend."""
     return _CURRENT_BACKEND
+
 
 @contextmanager
 def backend(name: Backend) -> Iterator[None]:

@@ -1,12 +1,17 @@
 # src/chromaflow/gamut.py
 from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import numpy as np
-from typing import TYPE_CHECKING, Tuple
 
 if TYPE_CHECKING:
     from .color_object import Color
 
-def in_gamut(color: Color, target_gamut_space: str = "srgb", tolerance: float = 1e-5) -> bool:
+
+def in_gamut(
+    color: Color, target_gamut_space: str = "srgb", tolerance: float = 1e-5
+) -> bool:
     """
     Checks if a color is within the specified RGB gamut.
 
@@ -29,6 +34,7 @@ def in_gamut(color: Color, target_gamut_space: str = "srgb", tolerance: float = 
         # If conversion fails for any reason, it's effectively out of gamut.
         return False
 
+
 def clip(color: Color, target_gamut_space: str = "srgb") -> Color:
     """
     Clips a color to the target RGB gamut.
@@ -49,11 +55,12 @@ def clip(color: Color, target_gamut_space: str = "srgb") -> Color:
     clipped_color = color.__class__(space=target_gamut_space, values=clipped_values)
     return clipped_color.to(original_space)
 
+
 def oklch_chroma(
     color: Color,
     target_gamut_space: str = "srgb",
     tolerance: float = 1e-7,
-    max_iterations: int = 20
+    max_iterations: int = 20,
 ) -> Color:
     """
     Maps a color to a target gamut using chroma reduction in Oklch space.
@@ -82,17 +89,13 @@ def oklch_chroma(
     low_chroma = 0.0
     high_chroma = C
     mid_chroma = C
-    
-    # Start with the out-of-gamut color in the target space
-    # This gives us a starting point for checking which channels are out
-    rgb_high = oklch.to(target_gamut_space)
 
     for _ in range(max_iterations):
         mid_chroma = (high_chroma + low_chroma) / 2.0
-        
+
         # Create a test color with the mid-chroma value
         test_color = color.__class__(space="oklch", values=(L, mid_chroma, h))
-        
+
         if in_gamut(test_color, target_gamut_space, tolerance=0.0):
             # The color is in gamut, so this is our new best guess.
             # We try to find a color with even more chroma.
@@ -103,7 +106,7 @@ def oklch_chroma(
 
         if (high_chroma - low_chroma) < tolerance:
             break
-            
+
     # The final color uses the last known "in-gamut" chroma value (low_chroma)
     final_oklch = color.__class__(space="oklch", values=(L, low_chroma, h))
     return final_oklch.to(original_space)

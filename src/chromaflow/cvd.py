@@ -1,91 +1,287 @@
-# src/chromaflow/cvd.py
 from __future__ import annotations
-import numpy as np
+
 from typing import TYPE_CHECKING, Literal
+
+import numpy as np
+from numpy.typing import NDArray
 
 if TYPE_CHECKING:
     from .color_object import Color
 
-# Correction matrices for Machado et al. (2009) simulation model
-# These matrices transform LMS colors for a CVD observer.
-LMS_CVD_MATRICES = {
-    # Severity 0 = no simulation
-    "protanopia": np.array([
-        [0.0, 2.02344, -2.52581],
-        [0.0, 1.0, 0.0],
-        [0.0, 0.0, 1.0]
-    ]),
-    "deuteranopia": np.array([
-        [1.0, 0.0, 0.0],
-        [0.494207, 0.0, 1.24827],
-        [0.0, 0.0, 1.0]
-    ]),
-    "tritanopia": np.array([
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        [-0.395913, 0.801109, 0.0]
-    ]),
-}
-
-# Linear transformation from sRGB-linear to LMS cone space
-SRGB_LINEAR_TO_LMS = np.array([
-    [17.8824, 43.5161, 4.11935],
-    [3.45565, 27.1554, 3.86714],
-    [0.0299566, 0.184309, 1.46709]
-])
-
-# Inverse transformation
-LMS_TO_SRGB_LINEAR = np.linalg.inv(SRGB_LINEAR_TO_LMS)
-
+FloatArray = NDArray[np.float64]
 CVD_Model = Literal["protanopia", "deuteranopia", "tritanopia"]
 
-def simulate_machado(color: Color, deficiency: CVD_Model, severity: float = 1.0) -> Color:
+# Precomputed simulation matrices published by Machado et al. via the UFRGS
+# simulator implementation. Values are defined for severities 0.0..1.0 in 0.1
+# steps and linearly interpolated between neighboring samples.
+_MACHADO_MATRICES: dict[CVD_Model, dict[float, FloatArray]] = {
+    "protanopia": {
+        0.0: np.array([[1.0, 0.0, -0.0], [0.0, 1.0, 0.0], [-0.0, -0.0, 1.0]]),
+        0.1: np.array(
+            [
+                [0.856167, 0.182038, -0.038205],
+                [0.029342, 0.955115, 0.015544],
+                [-0.00288, -0.001563, 1.004443],
+            ]
+        ),
+        0.2: np.array(
+            [
+                [0.734766, 0.334872, -0.069637],
+                [0.05184, 0.919198, 0.028963],
+                [-0.004928, -0.004209, 1.009137],
+            ]
+        ),
+        0.3: np.array(
+            [
+                [0.630323, 0.465641, -0.095964],
+                [0.069181, 0.890046, 0.040773],
+                [-0.006308, -0.007724, 1.014032],
+            ]
+        ),
+        0.4: np.array(
+            [
+                [0.539009, 0.579343, -0.118352],
+                [0.082546, 0.866121, 0.051332],
+                [-0.007136, -0.011959, 1.019095],
+            ]
+        ),
+        0.5: np.array(
+            [
+                [0.458064, 0.679578, -0.137642],
+                [0.092785, 0.846313, 0.060902],
+                [-0.007494, -0.016807, 1.024301],
+            ]
+        ),
+        0.6: np.array(
+            [
+                [0.38545, 0.769005, -0.154455],
+                [0.100526, 0.829802, 0.069673],
+                [-0.007442, -0.02219, 1.029632],
+            ]
+        ),
+        0.7: np.array(
+            [
+                [0.319627, 0.849633, -0.169261],
+                [0.106241, 0.815969, 0.07779],
+                [-0.007025, -0.028051, 1.035076],
+            ]
+        ),
+        0.8: np.array(
+            [
+                [0.259411, 0.923008, -0.18242],
+                [0.110296, 0.80434, 0.085364],
+                [-0.006276, -0.034346, 1.040622],
+            ]
+        ),
+        0.9: np.array(
+            [
+                [0.203876, 0.990338, -0.194214],
+                [0.112975, 0.794542, 0.092483],
+                [-0.005222, -0.041043, 1.046265],
+            ]
+        ),
+        1.0: np.array(
+            [
+                [0.152286, 1.052583, -0.204868],
+                [0.114503, 0.786281, 0.099216],
+                [-0.003882, -0.048116, 1.051998],
+            ]
+        ),
+    },
+    "deuteranopia": {
+        0.0: np.array([[1.0, 0.0, -0.0], [0.0, 1.0, 0.0], [-0.0, -0.0, 1.0]]),
+        0.1: np.array(
+            [
+                [0.866435, 0.177704, -0.044139],
+                [0.049567, 0.939063, 0.01137],
+                [-0.003453, 0.007233, 0.99622],
+            ]
+        ),
+        0.2: np.array(
+            [
+                [0.760729, 0.319078, -0.079807],
+                [0.090568, 0.889315, 0.020117],
+                [-0.006027, 0.013325, 0.992702],
+            ]
+        ),
+        0.3: np.array(
+            [
+                [0.675425, 0.43385, -0.109275],
+                [0.125303, 0.847755, 0.026942],
+                [-0.00795, 0.018572, 0.989378],
+            ]
+        ),
+        0.4: np.array(
+            [
+                [0.605511, 0.52856, -0.134071],
+                [0.155318, 0.812366, 0.032316],
+                [-0.009376, 0.023176, 0.9862],
+            ]
+        ),
+        0.5: np.array(
+            [
+                [0.547494, 0.607765, -0.155259],
+                [0.181692, 0.781742, 0.036566],
+                [-0.01041, 0.027275, 0.983136],
+            ]
+        ),
+        0.6: np.array(
+            [
+                [0.498864, 0.674741, -0.173604],
+                [0.205199, 0.754872, 0.039929],
+                [-0.011131, 0.030969, 0.980162],
+            ]
+        ),
+        0.7: np.array(
+            [
+                [0.457771, 0.731899, -0.18967],
+                [0.226409, 0.731012, 0.042579],
+                [-0.011595, 0.034333, 0.977261],
+            ]
+        ),
+        0.8: np.array(
+            [
+                [0.422823, 0.781057, -0.203881],
+                [0.245752, 0.709602, 0.044646],
+                [-0.011843, 0.037423, 0.974421],
+            ]
+        ),
+        0.9: np.array(
+            [
+                [0.392952, 0.82361, -0.216562],
+                [0.263559, 0.69021, 0.046232],
+                [-0.01191, 0.040281, 0.97163],
+            ]
+        ),
+        1.0: np.array(
+            [
+                [0.367322, 0.860646, -0.227968],
+                [0.280085, 0.672501, 0.047413],
+                [-0.01182, 0.04294, 0.968881],
+            ]
+        ),
+    },
+    "tritanopia": {
+        0.0: np.array([[1.0, 0.0, -0.0], [0.0, 1.0, 0.0], [-0.0, -0.0, 1.0]]),
+        0.1: np.array(
+            [
+                [0.92667, 0.092514, -0.019184],
+                [0.021191, 0.964503, 0.014306],
+                [0.008437, 0.054813, 0.93675],
+            ]
+        ),
+        0.2: np.array(
+            [
+                [0.89572, 0.13333, -0.02905],
+                [0.029997, 0.9454, 0.024603],
+                [0.013027, 0.104707, 0.882266],
+            ]
+        ),
+        0.3: np.array(
+            [
+                [0.905871, 0.127791, -0.033662],
+                [0.026856, 0.941251, 0.031893],
+                [0.01341, 0.148296, 0.838294],
+            ]
+        ),
+        0.4: np.array(
+            [
+                [0.948035, 0.08949, -0.037526],
+                [0.014364, 0.946792, 0.038844],
+                [0.010853, 0.193991, 0.795156],
+            ]
+        ),
+        0.5: np.array(
+            [
+                [1.017277, 0.027029, -0.044306],
+                [-0.006113, 0.958479, 0.047634],
+                [0.006379, 0.248708, 0.744913],
+            ]
+        ),
+        0.6: np.array(
+            [
+                [1.104996, -0.046633, -0.058363],
+                [-0.032137, 0.971635, 0.060503],
+                [0.001336, 0.317922, 0.680742],
+            ]
+        ),
+        0.7: np.array(
+            [
+                [1.193214, -0.109812, -0.083402],
+                [-0.058496, 0.97941, 0.079086],
+                [-0.002346, 0.403492, 0.598854],
+            ]
+        ),
+        0.8: np.array(
+            [
+                [1.257728, -0.139648, -0.118081],
+                [-0.078003, 0.975409, 0.102594],
+                [-0.003316, 0.501214, 0.502102],
+            ]
+        ),
+        0.9: np.array(
+            [
+                [1.278864, -0.125333, -0.153531],
+                [-0.084748, 0.957674, 0.127074],
+                [-0.000989, 0.601151, 0.399838],
+            ]
+        ),
+        1.0: np.array(
+            [
+                [1.255528, -0.076749, -0.178779],
+                [-0.078411, 0.930809, 0.147602],
+                [0.004733, 0.691367, 0.3039],
+            ]
+        ),
+    },
+}
+
+
+def _matrix_cvd_machado(deficiency: CVD_Model, severity: float) -> FloatArray:
+    severity = float(np.clip(severity, 0.0, 1.0))
+    matrices = _MACHADO_MATRICES[deficiency]
+    samples = np.array(sorted(matrices))
+    upper_index = int(np.searchsorted(samples, severity, side="right"))
+    lower_index = max(upper_index - 1, 0)
+    upper_index = min(upper_index, len(samples) - 1)
+    lower = float(samples[lower_index])
+    upper = float(samples[upper_index])
+    lower_matrix = matrices[lower]
+    upper_matrix = matrices[upper]
+
+    if lower == upper:
+        return lower_matrix
+
+    return lower_matrix + (severity - lower) * (
+        (upper_matrix - lower_matrix) / (upper - lower)
+    )
+
+
+def simulate_machado(
+    color: Color,
+    deficiency: CVD_Model,
+    severity: float = 1.0,
+) -> Color:
     """
-    Simulates color vision deficiency using the Machado (2009) model.
+    Simulate color vision deficiency using Machado et al. (2009).
 
-    This model operates in linear sRGB space. The color is converted, transformed
-    into an LMS cone space, adjusted for the deficiency, and then transformed
-    back.
-
-    Args:
-        color: The original color to simulate.
-        deficiency: The type of deficiency ('protanopia', 'deuteranopia', 'tritanopia').
-        severity: The severity of the deficiency, from 0.0 (none) to 1.0 (full).
-
-    Returns:
-        A new Color object representing the simulated perception.
+    The model operates in linear sRGB and applies the published deficiency
+    matrix for the requested severity, interpolating between 0.1 severity
+    steps when needed.
     """
     if severity <= 0.0:
         return color
-    if severity > 1.0:
-        severity = 1.0
-        
+
     original_space = color.space
-    
-    # The model operates on linear sRGB values
     srgb_linear = color.to("srgb-linear")
     rgb = np.array(srgb_linear.values)
+    simulated_rgb = _matrix_cvd_machado(deficiency, severity) @ rgb
 
-    # Transform linear RGB to LMS cone space
-    lms = np.dot(SRGB_LINEAR_TO_LMS, rgb)
-
-    # Get the appropriate 100% severity matrix
-    cvd_matrix = LMS_CVD_MATRICES[deficiency]
-    
-    # Apply the simulation (linear interpolation between identity and full-deficiency)
-    # severity * (lms @ cvd_matrix) + (1 - severity) * (lms @ identity_matrix)
-    lms_simulated = (1.0 - severity) * lms + severity * np.dot(cvd_matrix, lms)
-
-    # Transform back to linear sRGB
-    rgb_simulated = np.dot(LMS_TO_SRGB_LINEAR, lms_simulated)
-    
-    # Create the new color and convert it back to the original space
     simulated_color = color.__class__(
         space="srgb-linear",
-        values=tuple(rgb_simulated)
+        values=tuple(simulated_rgb),
     )
-    
-    # Clip the result to the sRGB gamut before returning
-    # This prevents artifacts from the simulation process.
+
     from . import gamut
+
     return gamut.clip(simulated_color, "srgb").to(original_space)

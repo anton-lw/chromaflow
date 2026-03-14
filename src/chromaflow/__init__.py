@@ -1,14 +1,14 @@
 # src/chromaflow/__init__.py
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
-from .color_object import Color
 from . import config
+from .color_object import Color
 from .exceptions import (
+    BackendConfigurationError,
     ChromaFlowError,
     ColorSpaceError,
     ConversionPathError,
-    BackendConfigurationError,
     GamutError,
 )
 

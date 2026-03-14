@@ -1,6 +1,9 @@
 # tests/test_conversions.py
-import pytest
+from typing import Literal
+
 import numpy as np
+import pytest
+
 from chromaflow import Color, config
 
 # A set of test colors covering different parts of the color space
@@ -19,11 +22,17 @@ ROUND_TRIP_SPACES = ["srgb-linear", "xyz-d65", "lab-d65", "oklab", "oklch", "jza
 
 # All available backends
 BACKENDS = ["numpy", "jax", "numba"]
+BackendName = Literal["numpy", "jax", "numba"]
+
 
 @pytest.mark.parametrize("backend", BACKENDS)
 @pytest.mark.parametrize("space", ROUND_TRIP_SPACES)
 @pytest.mark.parametrize("color_name", TEST_COLORS.keys())
-def test_round_trip_conversions(backend, space, color_name):
+def test_round_trip_conversions(
+    backend: BackendName,
+    space: str,
+    color_name: str,
+) -> None:
     """
     Tests that converting a color to a space and back yields the original color.
     This is a powerful integration test for the entire conversion graph.
@@ -33,7 +42,7 @@ def test_round_trip_conversions(backend, space, color_name):
         pytest.importorskip(backend)
 
     original_color = TEST_COLORS[color_name]
-    
+
     with config.backend(backend):
         # Forward and backward conversion
         intermediate_color = original_color.to(space)
@@ -42,12 +51,14 @@ def test_round_trip_conversions(backend, space, color_name):
     # Check if the final values are close to the original values
     original_vals = np.array(original_color.values)
     final_vals = np.array(final_color.values)
-    
-    assert np.allclose(original_vals, final_vals, atol=1e-5), \
-        f"Round trip failed for {color_name} via {space} with {backend} backend. " \
-        f"Got {final_vals}, expected {original_vals}"
 
-def test_known_value_conversion():
+    assert np.allclose(original_vals, final_vals, atol=1e-5), (
+        f"Round trip failed for {color_name} via {space} with {backend} backend. "
+        f"Got {final_vals}, expected {original_vals}"
+    )
+
+
+def test_known_value_conversion() -> None:
     """
     Tests a specific conversion against a known, pre-calculated reference value.
     This ensures our math is correct, not just self-consistent.
@@ -56,7 +67,7 @@ def test_known_value_conversion():
     # Reference values from http://www.brucelindbloom.com/index.html?ColorCalculator
     srgb_red = Color("srgb", (1, 0, 0))
     lab_red = srgb_red.to("lab-d65")
-    
+
     expected_lab = (53.2408, 80.0925, 67.2032)
-    
+
     assert np.allclose(lab_red.values, expected_lab, atol=1e-4)
